@@ -1,0 +1,64 @@
+####### Aliases/Functions #############
+alias ls='ls --color=auto'		# colors for ls command
+
+alias rd='rmdir'
+alias md='mkdir -p'
+
+alias ls='ls --color=auto'
+alias ll='ls -lah --color=auto'
+alias la='ls -ah --color=auto'
+alias l='ls -lh --color=auto'
+alias dir='ls -lhR --color=auto | less -R'
+alias -g grep='grep -i --color' 
+
+alias mysqldump='mysqldump --default-character-set=utf8'
+
+alias acs='apt-cache search'
+alias acsh='apt-cache show'
+alias llog="$PAGER -M /var/log/syslog"     # take a look at the syslog
+alias tlog="less +F -M /var/log/syslog"    # follow the syslog
+
+alias cp='nocorrect cp'         # no spelling correction on cp
+alias mkdir='nocorrect mkdir'   # no spelling correction on mkdir
+alias mv='nocorrect mv'         # no spelling correction on mv
+alias rm='nocorrect rm'         # no spelling correction on rm
+alias sudo="nocorrect sudo"
+
+alias ssh="ssh -o TCPKeepAlive=yes"
+
+mcd() {
+    mkdir -p "$@" && cd "$@"
+}
+
+## This aliases get executed with sudo
+salias agi="apt-get install"
+salias agr="apt-get remove"
+salias agud="apt-get update"
+salias agug="apt-get upgrade"
+salias agdug="apt-get dist-upgrade"
+
+
+# Pacman alias examples
+salias pacupg="pacman -Syu"        # Synchronize with repositories and then upgrade packages that are out of date on the local system.
+salias pacin='pacman -S'           # Install specific package(s) from the repositories
+salias pacins='pacman -U'          # Install specific package not from the repositories but from a file 
+salias pacre='pacman -R'           # Remove the specified package(s), retaining its configuration(s) and required dependencies
+salias pacrem='pacman -Rns'        # Remove the specified package(s), its configuration(s) and unneeded dependencies
+alias pacrep='pacman -Si'              # Display information about a given package in the repositories
+alias pacreps='pacman -Ss'             # Search for package(s) in the repositories
+alias pacloc='pacman -Qi'              # Display information about a given package in the local database
+alias paclocs='pacman -Qs'             # Search for package(s) in the local database
+
+
+####### ABBREVS #######
+## can be expanded with str-space
+## each entry is also a global alias
+
+typeset -A abbrevs
+abbrevs=('...' '../..'
+         '....' '../../..'
+         '.....' '../../../..'
+         'L' '| less -M'
+         'G' '| grep -i --color'
+         'T' '| less +F -M'
+)

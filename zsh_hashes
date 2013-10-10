@@ -1,0 +1,2 @@
+########## Hashes ###########
+hash -d log=/var/log

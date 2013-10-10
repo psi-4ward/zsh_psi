@@ -1,0 +1,745 @@
+scriptPath=${0:A:h}
+
+# creates an alias and precedes the command with
+# sudo if $EUID is not zero.
+salias() {
+    emulate -L zsh
+    local only=0 ; local multi=0
+    while [[ $1 == -* ]] ; do
+        case $1 in
+            (-o) only=1 ;;
+            (-a) multi=1 ;;
+            (--) shift ; break ;;
+            (-h)
+                printf 'usage: salias [-h|-o|-a] <alias-expression>\n'
+                printf '  -h      shows this help text.\n'
+                printf '  -a      replace '\'' ; '\'' sequences with '\'' ; sudo '\''.\n'
+                printf '          be careful using this option.\n'
+                printf '  -o      only sets an alias if a preceding sudo would be needed.\n'
+                return 0
+                ;;
+            (*) printf "unkown option: '%s'\n" "$1" ; return 1 ;;
+        esac
+        shift
+    done
+
+    if (( ${#argv} > 1 )) ; then
+        printf 'Too many arguments %s\n' "${#argv}"
+        return 1
+    fi
+
+    key="${1%%\=*}" ;  val="${1#*\=}"
+    if (( EUID == 0 )) && (( only == 0 )); then
+        alias -- "${key}=${val}"
+    elif (( EUID > 0 )) ; then
+        (( multi > 0 )) && val="${val// ; / ; sudo }"
+        alias -- "${key}=sudo ${val}"
+    fi
+
+    return 0
+}
+
+# autoload wrapper - use this one instead of autoload directly
+# We need to define this function as early as this, because autoloading
+# 'is-at-least()' needs it.
+function zrcautoload() {
+    emulate -L zsh
+    setopt extended_glob
+    local fdir ffile
+    local -i ffound
+
+    ffile=$1
+    (( found = 0 ))
+    for fdir in ${fpath} ; do
+        [[ -e ${fdir}/${ffile} ]] && (( ffound = 1 ))
+    done
+
+    (( ffound == 0 )) && return 1
+    if [[ $ZSH_VERSION == 3.1.<6-> || $ZSH_VERSION == <4->* ]] ; then
+        autoload -U ${ffile} || return 1
+    else
+        autoload ${ffile} || return 1
+    fi
+    return 0
+}
+
+
+########## Hashes ###########
+[[ -r ${scriptPath}/zsh_hashes ]] && source ${scriptPath}/zsh_hashes
+
+
+#### LOAD Aliases/Functions
+[[ -r ${scriptPath}/zsh_aliases ]] && source ${scriptPath}/zsh_aliases
+
+
+########### some config ########
+setopt notify               # report the status of backgrounds jobs immediately
+setopt extended_glob        # in order to use #, ~ and ^ for filename generation
+                            # grep word *~(*.gz|*.bz|*.bz2|*.zip|*.Z) ->
+                            # -> searches for word not in compressed files
+                            # don't forget to quote '^', '~' and '#'!
+setopt hash_list_all        # Whenever a command completion is attempted, make sure the entire command path is hashed first.
+setopt completeinword       # not just at the end
+setopt auto_pushd           # make cd push the old directory onto the directory stack.
+setopt nonomatch            # try to avoid the 'zsh: no matches found...'
+setopt nobeep               # avoid "beep"ing
+setopt pushd_ignore_dups    # don't push the same dir twice.
+setopt noglobdots           # * shouldn't match dotfiles. ever.
+setopt noshwordsplit        # use zsh style word splitting
+#. /etc/zsh_command_not_found 		# command-not-found hints
+setopt correctall
+setopt autocd
+# setopt ignoreeof			# ignore EOF
+setopt interactivecomments
+setopt nobanghist
+setopt noclobber
+setopt SH_WORD_SPLIT
+setopt nohup
+setopt NO_CASE_GLOB # Globbing ist nicht mehr casesensitive
+setopt EXTENDED_GLOB
+setopt ZLE
+#setopt RM_STAR_WAIT 		# Prompts for confirmation after 'rm *' etc
+setopt AUTO_CONTINUE		# Background processes aren't killed on exit of shell
+
+# Watch other user login/out
+watch=notme
+export LOGCHECK=60
+
+export EDITOR=vim
+export PAGER=less
+export SHELL=/bin/zsh
+
+# support colors in less
+export LESS_TERMCAP_mb=$'\E[01;31m'
+export LESS_TERMCAP_md=$'\E[01;31m'
+export LESS_TERMCAP_me=$'\E[0m'
+export LESS_TERMCAP_se=$'\E[0m'8
+export LESS_TERMCAP_so=$'\E[01;44;33m'
+export LESS_TERMCAP_ue=$'\E[0m'
+export LESS_TERMCAP_us=$'\E[01;32m'
+
+eval "`dircolors -b`"		# Colors
+
+
+
+# MySQL prompt
+export MYSQL_PS1="\R:\m:\s \h> "
+
+export WORDCHARS='*?_[]~=&;!#$%^(){}'			# More Bashlike wordjumping
+
+#
+## PROMPT CONFIG
+autoload -Uz vcs_info
+
+precmd() {
+	psvar=()
+	vcs_info
+	[[ -n $vcs_info_msg_0_ ]] && psvar[1]="$vcs_info_msg_0_"
+}
+
+PROMPT_VCS_INFO="%(1v.%F{green}%1v%f.)"
+#autoload -U compinit promptinit
+#compinit
+#promptinit; prompt gentoo
+if [[ ${EUID} == 0 ]] ; then 
+	#PROMPT=$'%{\e[0;41m%}%n%{\e[0;1m%}@%{\e[0;36m%}%M%{\e[0;1m%}:%{\e[0;93m%}%~%0(?,%{\e[0;1m%}$,%{\e[1;31m%}$%s)%b '
+	PROMPT=$'%B%F{red}%m%k %B%F{blue}%0~'$PROMPT_VCS_INFO' %F{blue}%# %b%f%k'
+else
+	#PROMPT=$'%{\e[0;91m%}%n%{\e[0;1m%}@%{\e[0;36m%}%M%{\e[0;1m%}:%{\e[0;93m%}%~%0(?,%{\e[0;1m%}$,%{\e[1;31m%}$%s)%b '
+	# gentoo style:
+	PROMPT=$'%B%F{green}%n@%m%k %B%F{blue}%0~'$PROMPT_VCS_INFO' %F{blue}%# %b%f%k'
+fi
+
+
+
+
+########### HISTORY ###########
+
+setopt append_history       # append history list to the history file (important for multiple parallel zsh sessions!)
+setopt share_history		# History sharing
+setopt histignorealldups    # list duplicates an older one, the older command is removed from the list
+setopt HIST_REDUCE_BLANKS
+setopt HIST_IGNORE_SPACE
+export HISTSIZE=2000
+export HISTFILE="$HOME/.history"
+export SAVEHIST=$HISTSIZE
+
+
+########## some Modules #########
+
+autoload zmv
+
+
+
+######## completeion ##########
+# load our function and completion directories
+autoload -Uz compinit && compinit
+zmodload zsh/complist
+
+    # allow one error for every three characters typed in approximate completer
+    zstyle ':completion:*:approximate:'    max-errors 'reply=( $((($#PREFIX+$#SUFFIX)/3 )) numeric )'
+
+    # don't complete backup files as executables
+    zstyle ':completion:*:complete:-command-::commands' ignored-patterns '(aptitude-*|*\~)'
+
+    # start menu completion only if it could find no unambiguous initial string
+    zstyle ':completion:*:correct:*'       insert-unambiguous true
+    zstyle ':completion:*:corrections'     format $'%{\e[0;31m%}%d (errors: %e)%{\e[0m%}'
+    zstyle ':completion:*:correct:*'       original true
+
+    # activate color-completion
+    zstyle ':completion:*:default'         list-colors ${(s.:.)LS_COLORS}
+
+    # format on completion
+    zstyle ':completion:*:descriptions'    format $'%{\e[0;31m%}completing %B%d%b%{\e[0m%}'
+
+    # automatically complete 'cd -<tab>' and 'cd -<ctrl-d>' with menu
+    # zstyle ':completion:*:*:cd:*:directory-stack' menu yes select
+
+    # insert all expansions for expand completer
+    zstyle ':completion:*:expand:*'        tag-order all-expansions
+    zstyle ':completion:*:history-words'   list false
+
+    # activate menu
+    zstyle ':completion:*:history-words'   menu yes
+
+    # ignore duplicate entries
+    zstyle ':completion:*:history-words'   remove-all-dups yes
+    zstyle ':completion:*:history-words'   stop yes
+
+    # match uppercase from lowercase
+    zstyle ':completion:*'                 matcher-list 'm:{a-z}={A-Z}'
+
+    # separate matches into groups
+    zstyle ':completion:*:matches'         group 'yes'
+    zstyle ':completion:*'                 group-name ''
+
+    if [[ "$NOMENU" -eq 0 ]] ; then
+        # if there are more than 5 options allow selecting from a menu
+        zstyle ':completion:*'               menu select=5
+    else
+        # don't use any menus at all
+        setopt no_auto_menu
+    fi
+
+    zstyle ':completion:*:messages'        format '%d'
+    zstyle ':completion:*:options'         auto-description '%d'
+
+    # describe options in full
+    zstyle ':completion:*:options'         description 'yes'
+
+    # on processes completion complete all user processes
+    zstyle ':completion:*:processes'       command 'ps -au$USER'
+
+    # offer indexes before parameters in subscripts
+    zstyle ':completion:*:*:-subscript-:*' tag-order indexes parameters
+
+    # provide verbose completion information
+    zstyle ':completion:*'                 verbose true
+
+    # recent (as of Dec 2007) zsh versions are able to provide descriptions
+    # for commands (read: 1st word in the line) that it will list for the user
+    # to choose from. The following disables that, because it's not exactly fast.
+    zstyle ':completion:*:-command-:*:'    verbose false
+
+    # set format for warnings
+    zstyle ':completion:*:warnings'        format $'%{\e[0;31m%}No matches for:%{\e[0m%} %d'
+
+    # define files to ignore for zcompile
+    zstyle ':completion:*:*:zcompile:*'    ignored-patterns '(*~|*.zwc)'
+    zstyle ':completion:correct:'          prompt 'correct to: %e'
+
+    # Ignore completion functions for commands you don't have:
+    zstyle ':completion::(^approximate*):*:functions' ignored-patterns '_*'
+
+    # Provide more processes in completion of programs like killall:
+    zstyle ':completion:*:processes-names' command 'ps c -u ${USER} -o command | uniq'
+
+    # complete manual by their section
+    zstyle ':completion:*:manuals'    separate-sections true
+    zstyle ':completion:*:manuals.*'  insert-sections   true
+    zstyle ':completion:*:man:*'      menu yes select
+
+    # provide .. as a completion
+    zstyle ':completion:*' special-dirs ..
+
+    # run rehash on completion so new installed program are found automatically:
+    _force_rehash() {
+        (( CURRENT == 1 )) && rehash
+        return 1
+    }
+
+    ## correction
+    # some people don't like the automatic correction - so run 'NOCOR=1 zsh' to deactivate it
+    if [[ "$NOCOR" -gt 0 ]] ; then
+        zstyle ':completion:*' completer _oldlist _expand _force_rehash _complete _files _ignored
+        setopt nocorrect
+    else
+        # try to be smart about when to use what completer...
+        setopt correct
+        zstyle -e ':completion:*' completer '
+            if [[ $_last_try != "$HISTNO$BUFFER$CURSOR" ]] ; then
+                _last_try="$HISTNO$BUFFER$CURSOR"
+                reply=(_complete _match _ignored _prefix _files)
+            else
+                if [[ $words[1] == (rm|mv) ]] ; then
+                    reply=(_complete _files)
+                else
+                    reply=(_oldlist _expand _force_rehash _complete _ignored _correct _approximate _files)
+                fi
+            fi'
+    fi
+
+    # command for process lists, the local web server details and host completion
+    zstyle ':completion:*:urls' local 'www' '/var/www/' 'public_html'
+
+    # caching
+    [[ -d $ZSHDIR/cache ]] && zstyle ':completion:*' use-cache yes && \
+                            zstyle ':completion::complete:*' cache-path $ZSHDIR/cache/
+
+    # host completion /* add brackets as vim can't parse zsh's complex cmdlines 8-) {{{ */
+    [[ -r ~/.ssh/known_hosts ]] && _ssh_hosts=(${${${${(f)"$(<$HOME/.ssh/known_hosts)"}:#[\|]*}%%\ *}%%,*}) || _ssh_hosts=()
+    [[ -r /etc/hosts ]] && : ${(A)_etc_hosts:=${(s: :)${(ps:\t:)${${(f)~~"$(</etc/hosts)"}%%\#*}##[:blank:]#[^[:blank:]]#}}} || _etc_hosts=()
+    hosts=(
+        $(hostname)
+        "$_ssh_hosts[@]"
+        "$_etc_hosts[@]"
+        localhost
+    )
+    zstyle ':completion:*:hosts' hosts $hosts
+    # TODO: so, why is this here?
+    #  zstyle '*' hosts $hosts
+
+    # use generic completion system for programs not yet defined; (_gnu_generic works
+    # with commands that provide a --help option with "standard" gnu-like output.)
+    for compcom in cp deborphan df feh fetchipac head hnb ipacsum mv \
+                   pal stow tail uname ; do
+        [[ -z ${_comps[$compcom]} ]] && compdef _gnu_generic ${compcom}
+    done; unset compcom
+
+    # see upgrade function in this file
+    compdef _hosts upgrade
+
+
+
+###### Hotkeys / magic keys ##########
+autoload zkbd
+bindkey -e		# load emacs keymap
+
+
+############## populate $key[] hash for later key binding
+# 
+# stolen from: http://ft.bewatermyfriend.org/comp/zsh/zshrc.d/keyboard.html
+#
+# The journey towards "the perfect key definitions"[tm].
+#
+# We'll go about it like this:
+#   - if there's zsh/terminfo and $terminfo[] "looks good", use it.
+#   - if there's zsh/termcap and $termcap[] "looks good", use it.
+#   - if neither is there, fall back to zkbd.
+#   - if zkbd fails for some reason, create a setup-file-skeleton
+#     for the terminal-OS combination in question.
+#
+# Slight deviation from the rules, we just established:
+#   If the user marks a database entry as broken, directly fall back
+#   to zkbd:
+# % zstyle ':keyboard:$VENDOR:$OSTYPE:$TERM:*:*' broken (terminfo|termcap|both)
+#
+#   Also, allow for overwriting key definitions:
+# % zstyle ':keyboard:$VENDOR:$OSTYPE:$TERM:terminfo:Home' overwrite $'\e[1~'
+#
+# Styles *have* to be set *before* sourcing this file.
+# Also, this files expects pretty much zsh-mode default options. So,
+# set your crazy options *after* sourcing this file.
+#
+# Note, that this file does *NOT* bind anything for you. It merely
+# populates the $key[] hash, which you can later use to bind your keys,
+# like this:
+#   [[ -n ${key[Home]} ]] && bindkey ${key[Home]} beginning-of-line
+#
+# Also, this file uses a function called zprintf(), which I use in the
+# rest of my setup. zsh doesn't know about it by default, so you'd need
+# uncomment the following in order to avoid errors:
+#
+#ZSHRC_VERBOSE=0
+#function zprintf() {
+#    local -i level; local format
+#    level=$1 ; format=$2; shift; shift
+#    (( ZSHRC_VERBOSE < level )) && return 0
+#    printf '[%2d] '${format} ${level} "$@"
+#}
+#
+
+if [[ ${builtins[zmodload]} != 'defined' ]]; then
+    printf 'keyboard: zmodload builtin not found, cannot go on.\n'
+    return 0
+fi
+
+# zrclistkeys() show a list of keysyms strings
+function zrclistkeys() {
+    for i in ${(kon)key}; do
+        printf '%13s: '\''%s'\''\n' ${i} ${(V)${key[$i]}}
+    done
+}
+
+[[ ${modules[zsh/parameter]} != 'loaded' ]] && zmodload zsh/parameter
+
+typeset -A key
+typeset -A kbd_terminfo_map
+typeset -A kbd_termcap_map
+
+kbd_terminfo_map=(
+    Home        khome
+    End         kend
+    Insert      kich1
+    Delete      kdch1
+    Up          kcuu1
+    Down        kcud1
+    Left        kcub1
+    Right       kcuf1
+    PageUp      kpp
+    PageDown    knp
+)
+
+kbd_termcap_map=(
+    Home        kh
+    End         @7
+    Insert      kI
+    Delete      dc
+    Up          ku
+    Down        kd
+    Left        kl
+    Right       kr
+    PageUp      kP
+    PageDown    kN
+)
+
+mode='(-nothing-)'
+if [[ ${modules[zsh/terminfo]} == 'loaded' ]] && [[ ${(t)terminfo} == association-*-special ]]; then
+    mode='terminfo'
+elif zmodload zsh/terminfo 2> /dev/null && [[ ${modules[zsh/terminfo]} == 'loaded' ]] \
+    && [[ ${(t)terminfo} == association-*-special ]]; then
+    mode='terminfo'
+elif [[ ${modules[zsh/termcap]} == 'loaded' ]] && [[ ${(t)termcap} == association-*-special ]]; then
+    mode='termcap'
+elif zmodload zsh/termcap 2> /dev/null && [[ ${modules[zsh/termcap]} == 'loaded' ]] \
+    && [[ ${(t)termcap} == association-*-special ]]; then
+    mode='termcap'
+else
+    mode='zkbd'
+fi
+
+zstyle -s ':keyboard:*' zkbddir zkbddir || zkbddir="${ZDOTDIR:-$HOME}/.zkbd"
+kcontext=":keyboard:${VENDOR}:${OSTYPE}:${TERM}:*:*"
+zstyle -s ${kcontext} broken broken || broken=''
+if [[ ${broken} == 'both' ]] || [[ ${broken} == ${mode} ]]; then
+    mode='zkbd'
+fi
+
+if [[ ${mode} == 'zkbd' ]]; then
+    function Printf_file() {
+        [[ -f "$2" ]] && printf "$1" "$2" && return 0
+        return 1
+    }
+
+    function zrc_printf_termfile() {
+        Printf_file '%s' ~/.${zkbddir}/${TERM}-${VENDOR}-${OSTYPE} && return 0
+        Printf_file '%s' ~/.${zkbddir}/${TERM}-${DISPLAY}          && return 0
+        return 1
+    }
+
+    termfile="$(zrc_printf_termfile)"
+    if [[ -z "${termfile}" ]] ; then
+        zrcautoload zkbd && zkbd
+        termfile=$(zrc_printf_termfile)
+    fi
+
+    if [[ -f "${termfile}" ]] ; then
+        zprintf 1 '  zle: loading %s\n' "${termfile}"
+        source "${termfile}"
+    else
+        zprintf 0 'termfile (%s) not found. zkbd failed.\n' "${termfile}"
+        mode='need-manual-skeleton'
+    fi
+    unfunction Printf_file zrc_printf_termfile
+elif [[ ${mode} == 'terminfo' ]]; then
+    typeset -A key
+    for k in ${(k)kbd_terminfo_map}; do
+        key[$k]=${terminfo[${kbd_terminfo_map[$k]}]}
+    done
+    if [[ -n ${terminfo[smkx]} ]] && [[ -n ${terminfo[rmkx]} ]]; then
+        function zle-line-init () {
+            echoti smkx
+        }
+        function zle-line-finish () {
+            echoti rmkx
+        }
+        zle -N zle-line-init
+        zle -N zle-line-finish
+    fi
+else # termcap
+    typeset -A key
+    for k in ${(k)kbd_termcap_map}; do
+        key[$k]=${termcap[${kbd_termcap_map[$k]}]}
+    done
+    if [[ -n ${termcap[ks]} ]] && [[ -n ${termcap[ke]} ]]; then
+        function zle-line-init () {
+            echotc ks
+        }
+        function zle-line-finish () {
+            echotc ke
+        }
+        zle -N zle-line-init
+        zle -N zle-line-finish
+    fi
+fi
+
+if [[ ${mode} == 'need-manual-skeleton' ]]; then
+    termfile="${zkbddir}/MANUAL_${TERM}-${VENDOR}-${OSTYPE}"
+    if [[ ! -e ${termfile} ]]; then
+        printf '%s\n' "echo \"zkbd failed for terminal: ${TERM}-${VENDOR}-${OSTYPE}\"" > ${termfile}
+        printf '%s\n' "echo \"This is ${termfile}\";echo" >> ${termfile}
+        printf '%s\n' "echo \"Feel free to edit this file and manually insert the right\"" >> ${termfile}
+        printf '%s\n\n' "echo \"sequences for the keys you want.\"" >> ${termfile}
+        for k in ${(k)kbd_terminfo_map}; do
+            printf '#key[%s]=$'\'''\''\n' $k >> ${termfile}
+        done
+    fi
+    source ${termfile}
+fi
+
+key[Tab]='^I'
+for k in ${(k)key} ; do
+    key[Alt-${k}]='^['${key[$k]}
+done
+
+function kbd_expand() {
+    emulate -L zsh
+    setopt braceccl
+
+    for k in {0..9} {a-z} {A-Z} ; do
+        for i in Ctrl- Alt- ; do
+            case ${i} in
+            (Ctrl-)
+                [[ ${k} == [A-Z0-9] ]] && continue
+                key[${i}${k}]='^'${k}
+                ;;
+            (Alt-)
+                # This might not work everywhere. Oh well...
+                key[${i}${k}]='^['${k}
+                ;;
+            esac
+        done
+    done
+}
+kbd_expand
+
+key[Alt-Enter]='^[^M'
+#for k in ${(k)key}; do
+#    printf '"%s": "%s"\n' $k "${(V)key[$k]}"
+#done
+
+unset mode kcontext broken kbd_terminfo_map kbd_termcap_map termfile k sequence
+unfunction kbd_expand
+true
+#### end of $key[] population
+
+
+
+# ESC-h Call \kbd{run-help} for the 1st word on the command line
+alias run-help >&/dev/null && unalias run-help
+for rh in run-help{,-git,-svk,-svn}; do
+    zrcautoload $rh
+done; unset rh
+
+# Shift-tab Perform backwards menu completion
+if [[ -n "$terminfo[kcbt]" ]]; then
+    bindkey "$terminfo[kcbt]" reverse-menu-complete
+elif [[ -n "$terminfo[cbt]" ]]; then # required for GNU screen
+    bindkey "$terminfo[cbt]"  reverse-menu-complete
+fi
+
+# menu selection: pick item but stay in the menu
+bindkey -M menuselect '\e^M' accept-and-menu-complete
+
+# accept a completion and try to complete again by using menu
+# completion; very useful with completing directories
+# by using 'undo' one's got a simple file browser
+bindkey -M menuselect '^n' accept-and-infer-next-history
+
+
+# Trigger menu-complete ESC-i
+bindkey '\ei' menu-complete  # menu completion via esc-i
+
+# press esc-e for editing command line in $EDITOR or $VISUAL
+if zrcautoload edit-command-line && zle -N edit-command-line ; then
+    #k# Edit the current line in \kbd{\$EDITOR}
+    bindkey '\ee' edit-command-line
+fi
+
+# press "ctrl-i d" to insert the actual date in the form yyyy-mm-dd
+insert-datestamp() { LBUFFER+=${(%):-'%D{%Y-%m-%d}'}; }
+zle -N insert-datestamp
+bindkey '^Pd' insert-datestamp
+
+# run command line as user root via sudo:
+sudo-command-line() {
+    [[ -z $BUFFER ]] && zle up-history
+    [[ $BUFFER != sudo\ * ]] && BUFFER="sudo $BUFFER"
+}
+zle -N sudo-command-line
+bindkey "^Ps" sudo-command-line
+
+# the following options causes bad behaviour on ssh host completion
+#bindkey '^i' expand-or-complete-prefix                  # Tab
+
+
+
+
+
+
+bindkey "^[[3~" delete-char                             # Del
+bindkey "^[[5~" history-beginning-search-backward       # PageUp
+bindkey "^[[6~" history-beginning-search-forward        # PageDown
+bindkey ' '   magic-space    							# also do history expansion on space
+[[ -n "${key[Home]}"    ]]  && bindkey  "${key[Home]}"    beginning-of-line
+[[ -n "${key[End]}"     ]]  && bindkey  "${key[End]}"     end-of-line
+bindkey ';5D' emacs-backward-word						# wordjumping Ctrl-left
+bindkey ';5C' emacs-forward-word						# wordjumping Ctrl-right
+bindkey '^?' backward-delete-word						# delete the word bevor the cursor with ctrl-backspace
+bindkey -M emacs '^[[3;5~' kill-word	# delete word after cursor with ctrl-del
+
+############ More Stuff ##############
+
+# grep the history
+greph () { history 0 | grep $1 }
+  (grep --help 2>/dev/null |grep -- --color) >/dev/null && \
+    alias grep='grep --color=auto' # use colors when GNU grep with color-support
+  alias GREP='grep -i --color=auto'
+
+# list files which have been modified within the last x days
+new() { ls -ldha *(m-$1) }
+
+# use colors when browsing man pages (if not using pinfo or PAGER=most)
+[ -d ~/.terminfo/ ] && alias man='TERMINFO=~/.terminfo/ LESS=C TERM=mostlike PAGER=less man'
+
+
+#f1# Provides useful information on globbing
+H-Glob() {
+    echo -e "
+    /      directories
+    .      plain files
+    @      symbolic links
+    =      sockets
+    p      named pipes (FIFOs)
+    *      executable plain files (0100)
+    %      device files (character or block special)
+    %b     block special files
+    %c     character special files
+    r      owner-readable files (0400)
+    w      owner-writable files (0200)
+    x      owner-executable files (0100)
+    A      group-readable files (0040)
+    I      group-writable files (0020)
+    E      group-executable files (0010)
+    R      world-readable files (0004)
+    W      world-writable files (0002)
+    X      world-executable files (0001)
+    s      setuid files (04000)
+    S      setgid files (02000)
+    t      files with the sticky bit (01000)
+
+  print *(m-1)          # Files modified up to a day ago
+  print *(a1)           # Files accessed a day ago
+  print *(@)            # Just symlinks
+  print *(Lk+50)        # Files bigger than 50 kilobytes
+  print *(Lk-50)        # Files smaller than 50 kilobytes
+  print **/*.c          # All *.c files recursively starting in \$PWD
+  print **/*.c~file.c   # Same as above, but excluding 'file.c'
+  print (foo|bar).*     # Files starting with 'foo' or 'bar'
+  print *~*.*           # All Files that do not contain a dot
+  chmod 644 *(.^x)      # make all plain non-executable files publically readable
+  print -l *(.c|.h)     # Lists *.c and *.h
+  print **/*(g:users:)  # Recursively match all files that are owned by group 'users'
+  echo /proc/*/cwd(:h:t:s/self//) # Analogous to >ps ax | awk '{print $1}'<"
+}
+alias help-zshglob=H-Glob
+
+
+
+extract() {
+   if [[ -z "$1" ]] ; then
+      print -P "usage: \e[1;36mextract\e[1;0m < filename >"
+      print -P "       Extract the file specified based on the extension"
+   elif [[ -f $1 ]] ; then
+      case ${(L)1} in
+         *.tar.bz2)  tar -jxvf $1	;;
+         *.tar.gz)   tar -zxvf $1	;;
+         *.bz2)      bunzip2 $1	   ;;
+         *.gz)       gunzip $1	   ;;
+         *.jar)      unzip $1       ;;
+         *.rar)      unrar x $1	   ;;
+         *.tar)      tar -xvf $1	   ;;
+         *.tbz2)     tar -jxvf $1	;;
+         *.tgz)      tar -zxvf $1	;;
+         *.zip)      unzip $1	      ;;
+         *.Z)        uncompress $1	;;
+         *)          echo "Unable to extract '$1' :: Unknown extension"
+      esac
+   else
+      echo "File ('$1') does not exist!"
+   fi
+}
+
+
+# calculate (or eval at all ;-)) with perl => p[erl-]eval
+# hint: also take a look at zcalc -> 'autoload zcalc' -> 'man zshmodules | less -p MATHFUNC'
+calc() {
+    [[ -n "$1" ]] && CALC="$*" || print "Usage: calc [expression]"
+    perl -e "print eval($CALC),\"\n\";"
+}
+
+
+## load zsh.local files if exists
+[[ -r ${HOME}/.zsh.local ]] && source ${HOME}/.zsh.local
+
+#### ABBREVS ####
+# Create global aliases from the abbreviations.
+for abbr in ${(k)abbrevs}; do
+	alias -g $abbr="${abbrevs[$abbr]}"
+done
+
+globalias() {
+   local MATCH
+   LBUFFER=${LBUFFER%%(#m)[_a-zA-Z0-9]#}
+   LBUFFER+=${abbrevs[$MATCH]:-$MATCH}
+   zle self-insert
+   zle backward-delete-char
+}
+
+zle -N globalias
+
+# List abbreviations and abbr binding, picks out help in green.
+H-Abbrevs() {
+  echo "Displaying shell abbreviations"
+  echo "Keybinding is:" ${$(bindkey | grep globalias)[1]}
+  for abbr in ${(ok)abbrevs}; do
+printf "%-20s: %s" $abbr ${abbrevs[$abbr]:s/
+/$fg[green] /} # Replaces newlines with spaces
+    print -l $reset_color
+  done
+}
+
+# bindkey -r "^@"
+bindkey "^@" globalias
+
+
+# colorize stderr
+exec 2>>(while read line; do
+  print '\e[91m'${(q)line}'\e[0m' > /dev/tty; print -n $'\0'; done &)
+
+
+### unset functions
+unfunction salias
+unfunction zrcautoload
+
