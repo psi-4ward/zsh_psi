@@ -606,7 +606,7 @@ bindkey ' '   magic-space    							# also do history expansion on space
 [[ -n "${key[End]}"     ]]  && bindkey  "${key[End]}"     end-of-line
 bindkey ';5D' emacs-backward-word						# wordjumping Ctrl-left
 bindkey ';5C' emacs-forward-word						# wordjumping Ctrl-right
-bindkey '^?' backward-delete-word						# delete the word bevor the cursor with ctrl-backspace
+# bindkey '^?' backward-delete-word						# delete the word bevor the cursor with ctrl-backspace
 bindkey -M emacs '^[[3;5~' kill-word	# delete word after cursor with ctrl-del
 
 ############ More Stuff ##############
@@ -735,8 +735,7 @@ bindkey "^@" globalias
 
 
 # colorize stderr
-exec 2>>(while read line; do
-  print '\e[91m'${(q)line}'\e[0m' > /dev/tty; print -n $'\0'; done &)
+exec 2>>( while read X; do print "\e[91m${X}\e[0m" > /dev/tty; done & )
 
 
 ### unset functions
