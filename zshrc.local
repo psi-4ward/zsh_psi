@@ -735,7 +735,7 @@ bindkey "^@" globalias
 
 
 # colorize stderr
-exec 2>>( while read X; do print "\e[91m${(q)X}\e[0m" > /dev/tty; done & )
+# exec 2>>( while read X; do print "\e[91m${(q)X}\e[0m" > /dev/tty; done & )
 
 
 ### unset functions
