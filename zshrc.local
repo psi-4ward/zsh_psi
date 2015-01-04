@@ -138,9 +138,6 @@ precmd() {
 }
 
 PROMPT_VCS_INFO="%(1v.%F{green}%1v%f.)"
-#autoload -U compinit promptinit
-#compinit
-#promptinit; prompt gentoo
 if [[ ${EUID} == 0 ]] ; then 
 	#PROMPT=$'%{\e[0;41m%}%n%{\e[0;1m%}@%{\e[0;36m%}%M%{\e[0;1m%}:%{\e[0;93m%}%~%0(?,%{\e[0;1m%}$,%{\e[1;31m%}$%s)%b '
 	PROMPT=$'%B%F{red}%m%k %B%F{blue}%0~'$PROMPT_VCS_INFO' %F{blue}%# %b%f%k'
@@ -174,6 +171,7 @@ autoload zmv
 ######## completeion ##########
 # load our function and completion directories
 autoload -Uz compinit && compinit
+autoload -Uz bashcompinit && bashcompinit
 zmodload zsh/complist
 
     # allow one error for every three characters typed in approximate completer
@@ -739,6 +737,5 @@ bindkey "^@" globalias
 
 
 ### unset functions
-unfunction salias
 unfunction zrcautoload
 
